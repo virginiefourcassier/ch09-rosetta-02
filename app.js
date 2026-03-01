@@ -269,6 +269,19 @@
     ctx.fillStyle="rgba(255,255,255,.88)";
     ctx.font="16px system-ui,Segoe UI,Roboto,Arial";
     ctx.fillText("Relativité du mouvement — trajectoires relatives (simplifiée)", 16, 26);
+
+
+    // --- Signature ---
+    ctx.fillStyle = "rgba(255,255,255,0.65)";
+    ctx.font = "13px system-ui,Segoe UI,Roboto,Arial";
+    ctx.textAlign = "right";
+    ctx.fillText(
+      "Virginie Fourcassier. Lycée Pierre de Fermat. Toulouse",
+      canvas.width - 16,
+      canvas.height - 14
+    );
+    ctx.textAlign = "left";
+    
   }
 
   function tick(ts){
