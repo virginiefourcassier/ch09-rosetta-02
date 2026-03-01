@@ -10,23 +10,23 @@
   const refLabel = $("refLabel");
   const tLabel = $("tLabel");
   const zLabel = $("zLabel");
+  const vLabel = $("vLabel");
   const playBtn = $("playBtn");
+  const resetBtn = $("resetBtn");
   const tRange = $("tRange");
 
   const speedBtns = {1:$("speed1"),5:$("speed5"),20:$("speed20"),100:$("speed100")};
   const zoomBtns  = {1:$("zoom1"),2:$("zoom2"),4:$("zoom4"),8:$("zoom8")};
 
   // Période : décollage Terre -> atterrissage comète (Philae)
-  // (dates cohérentes avec chronologies publiques ESA/CNES)
   const DATE0 = new Date("2004-03-02T00:00:00Z").getTime();
   const DATE1 = new Date("2014-11-12T00:00:00Z").getTime();
-
   const YEAR = 365.25 * 24 * 3600 * 1000;
 
   function lerp(a,b,t){ return a + (b-a)*t; }
   function clamp(x,a,b){ return Math.max(a, Math.min(b,x)); }
 
-  // Terre : cercle 1 AU (modèle pédagogique)
+  // Terre : cercle 1 AU (pédagogique)
   function earthPos(ms){
     const theta = 2*Math.PI * ((ms - DATE0) / YEAR);
     return [Math.cos(theta), Math.sin(theta)];
@@ -43,7 +43,7 @@
 
   function cometPos(ms){
     const M = 2*Math.PI * ((ms - DATE0) / PC);
-    const E = M; // simplification (sans résolution Kepler)
+    const E = M; // simplification
     const x = aC*(Math.cos(E) - eC);
     const y = bC*Math.sin(E);
     const ang = PHASE_C;
@@ -64,6 +64,7 @@
   const rosettaPts = WP.map(w => {
     if (w.kind === "EARTH") return earthPos(w.t);
     if (w.kind === "COMET") return cometPos(w.t);
+    // "Mars-like" : point plus près du Soleil pour mimer un GA Mars
     const p = earthPos(w.t);
     const ang = Math.atan2(p[1], p[0]) + 0.35;
     return [0.7*Math.cos(ang), 0.7*Math.sin(ang)];
@@ -94,6 +95,7 @@
     return catmullRom(p0,p1,p2,p3,t);
   }
 
+  // Référentiels
   const REFS = [
     { id:"ROSETTA", label:"Référentiel : Rosetta" },
     { id:"EARTH",   label:"Référentiel : Terre"   },
@@ -115,35 +117,14 @@
   let u = 0; // 0..1
   let lastTs = 0;
 
-  function setRef(r){
-    ref = r;
-    [...refBtns.querySelectorAll("button")].forEach(b => b.classList.toggle("active", b.dataset.ref===r));
-    refLabel.textContent = r;
-    draw();
-  }
+  // Trajectoires "dessinées" (stockées), pour pouvoir les effacer au Reset
+  const bodies = ["SUN","EARTH","COMET","ROSETTA"];
+  const trails = Object.fromEntries(bodies.map(b => [b, []]));
+  let lastTrailU = -1;
 
-  function setZoom(z){
-    zoom = z;
-    zLabel.textContent = z + "×";
-    Object.entries(zoomBtns).forEach(([k,btn]) => btn.classList.toggle("active", +k===z));
-    draw();
-  }
-
-  function setSpeed(s){
-    speed = s;
-    Object.entries(speedBtns).forEach(([k,btn]) => btn.classList.toggle("active", +k===s));
-  }
-
-  function makeButtons(){
-    refBtns.innerHTML = "";
-    for (const r of REFS){
-      const b = document.createElement("button");
-      b.textContent = r.label;
-      b.dataset.ref = r.id;
-      b.onclick = () => setRef(r.id);
-      refBtns.appendChild(b);
-    }
-    setRef("ROSETTA");
+  function clearTrails(){
+    for (const b of bodies) trails[b].length = 0;
+    lastTrailU = -1;
   }
 
   function msFromU(u){
@@ -167,6 +148,66 @@
     return [p[0]-o[0], p[1]-o[1]];
   }
 
+  function pushTrailPoint(){
+    // échantillonnage en u (évite trop de points)
+    if (Math.abs(u - lastTrailU) < 0.0015) return;
+    lastTrailU = u;
+
+    const ms = msFromU(u);
+    for (const b of bodies){
+      const [x,y] = rel(b, ms);
+      trails[b].push([x,y]);
+      if (trails[b].length > 1600) trails[b].shift();
+    }
+  }
+
+  function setRef(r){
+    ref = r;
+    [...refBtns.querySelectorAll("button")].forEach(b => b.classList.toggle("active", b.dataset.ref===r));
+    refLabel.textContent = r;
+    // ancien tracé incompatible avec nouveau référentiel -> on efface
+    clearTrails();
+    draw();
+  }
+
+  function setZoom(z){
+    zoom = z;
+    zLabel.textContent = z + "×";
+    Object.entries(zoomBtns).forEach(([k,btn]) => btn.classList.toggle("active", +k===z));
+    draw();
+  }
+
+  function setSpeed(s){
+    speed = s;
+    vLabel.textContent = "×" + s;
+    Object.entries(speedBtns).forEach(([k,btn]) => btn.classList.toggle("active", +k===s));
+  }
+
+  function setPlaying(p){
+    playing = p;
+    playBtn.textContent = playing ? "⏸" : "▶︎";
+  }
+
+  function resetAll(){
+    setPlaying(false);
+    u = 0;
+    tRange.value = 0;
+    clearTrails(); // ✅ efface les trajectoires
+    draw();
+  }
+
+  function makeButtons(){
+    refBtns.innerHTML = "";
+    for (const r of REFS){
+      const b = document.createElement("button");
+      b.textContent = r.label;
+      b.dataset.ref = r.id;
+      b.onclick = () => setRef(r.id);
+      refBtns.appendChild(b);
+    }
+    setRef("ROSETTA");
+  }
+
   function draw(){
     const w = canvas.width, h = canvas.height;
     ctx.clearRect(0,0,w,h);
@@ -176,13 +217,13 @@
     const cx=w/2, cy=h/2;
     const pxPerAU = 170 * zoom;
 
-    // grille
+    // grille légère
     ctx.strokeStyle="rgba(255,255,255,.06)";
     ctx.lineWidth=1;
     for (let x=0; x<=w; x+=70){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke(); }
     for (let y=0; y<=h; y+=70){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
 
-    // axes
+    // axes centre
     ctx.strokeStyle="rgba(255,255,255,.22)";
     ctx.beginPath();
     ctx.moveTo(cx-12,cy); ctx.lineTo(cx+12,cy);
@@ -192,26 +233,25 @@
     const ms = msFromU(u);
     tLabel.textContent = isoDate(ms);
 
-    // fenêtre de trace (2.5 ans) pour rester lisible
-    const span = 2.5 * YEAR;
-    const tA = ms - span/2;
-    const tB = ms + span/2;
-    const N = 420;
-
-    const bodies = ["SUN","EARTH","COMET","ROSETTA"];
+    // trajectoires stockées
     for (const body of bodies){
-      ctx.strokeStyle = COLORS[body];
-      ctx.lineWidth = body==="ROSETTA" ? 2.5 : 2.0;
-      ctx.beginPath();
-      for (let i=0;i<=N;i++){
-        const tt = lerp(tA,tB,i/N);
-        const [x,y] = rel(body, tt);
-        const X = cx + x*pxPerAU;
-        const Y = cy - y*pxPerAU;
-        if (i===0) ctx.moveTo(X,Y); else ctx.lineTo(X,Y);
+      const tr = trails[body];
+      if (tr.length >= 2){
+        ctx.strokeStyle = COLORS[body];
+        ctx.lineWidth = body==="ROSETTA" ? 2.5 : 2.0;
+        ctx.beginPath();
+        for (let i=0;i<tr.length;i++){
+          const [x,y] = tr[i];
+          const X = cx + x*pxPerAU;
+          const Y = cy - y*pxPerAU;
+          if (i===0) ctx.moveTo(X,Y); else ctx.lineTo(X,Y);
+        }
+        ctx.stroke();
       }
-      ctx.stroke();
+    }
 
+    // positions courantes + labels
+    for (const body of bodies){
       const [x,y] = rel(body, ms);
       const X = cx + x*pxPerAU;
       const Y = cy - y*pxPerAU;
@@ -225,9 +265,10 @@
       ctx.fillText(body, X+8, Y-8);
     }
 
+    // titre
     ctx.fillStyle="rgba(255,255,255,.88)";
     ctx.font="16px system-ui,Segoe UI,Roboto,Arial";
-    ctx.fillText("Relativité du mouvement — trajectoires relatives (pédagogique)", 16, 26);
+    ctx.fillText("Relativité du mouvement — trajectoires relatives (simplifiée)", 16, 26);
   }
 
   function tick(ts){
@@ -238,24 +279,34 @@
     if (playing){
       const base = 1/1600; // fraction timeline / s à ×1
       u += (dt/1000) * base * speed;
-      if (u > 1) u = 1;
+      if (u > 1) { u = 1; setPlaying(false); }
       tRange.value = Math.round(u*1000);
+
+      pushTrailPoint();
       draw();
     }
     requestAnimationFrame(tick);
   }
 
-  playBtn.onclick = () => { playing = !playing; playBtn.textContent = playing ? "⏸" : "▶︎"; };
-  tRange.addEventListener("input", () => { u = (+tRange.value)/1000; draw(); });
+  // wiring
+  playBtn.onclick = () => setPlaying(!playing);
+  resetBtn.onclick = () => resetAll();
+
+  tRange.addEventListener("input", () => {
+    // un "scrub" est un nouveau départ visuel
+    setPlaying(false);
+    u = (+tRange.value)/1000;
+    clearTrails();
+    draw();
+  });
 
   Object.entries(speedBtns).forEach(([k,btn]) => btn.onclick = () => setSpeed(+k));
   Object.entries(zoomBtns).forEach(([k,btn]) => btn.onclick = () => setZoom(+k));
 
+  // init
   makeButtons();
   setZoom(1);
   setSpeed(1);
-  u = 0;
-  tRange.value = 0;
-  draw();
+  resetAll();
   requestAnimationFrame(tick);
 })();

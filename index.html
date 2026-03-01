@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Relativité du mouvement — Rosetta (HTML5)</title>
+  <title>Relativité du mouvement — Rosetta (simplifiée)</title>
   <style>
     html,body{height:100%;margin:0;background:#0b1220;color:#e5e7eb;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
     .wrap{max-width:1040px;margin:0 auto;padding:14px;box-sizing:border-box}
@@ -35,6 +35,7 @@
       <div class="btns" id="refBtns"></div>
       <div class="btns">
         <button id="playBtn">▶︎</button>
+        <button id="resetBtn">↺ Reset</button>
         <button id="speed1" class="active">×1</button>
         <button id="speed5">×5</button>
         <button id="speed20">×20</button>
@@ -59,12 +60,13 @@
         Référentiel : <span class="pill" id="refLabel">—</span>
         · Date : <span class="pill" id="tLabel">—</span>
         · Zoom : <span class="pill" id="zLabel">1×</span>
+        · Vitesse : <span class="pill" id="vLabel">×1</span>
       </div>
     </div>
 
     <div class="small" style="max-width:980px;margin:10px auto 0;">
-      ⚠️ Version <b>pédagogique</b> (trajectoires paramétriques + waypoints mission) pour illustrer la relativité du mouvement.
-      Pour des trajectoires <b>exactes</b> (JPL Horizons / SPICE), il faut importer des données externes.
+      Version <b>simplifiée</b> (modèles paramétriques + repères de mission) pour illustrer la relativité du mouvement.
+      Le bouton <b>Reset</b> remet au départ et <b>efface les trajectoires</b>.
     </div>
   </div>
 
