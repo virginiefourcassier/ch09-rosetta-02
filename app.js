@@ -13,23 +13,39 @@
   const vLabel = $("vLabel");
   const playBtn = $("playBtn");
   const resetBtn = $("resetBtn");
+  const eraseBtn = $("eraseBtn");
   const tRange = $("tRange");
 
   const speedBtns = {1:$("speed1"),5:$("speed5"),20:$("speed20"),100:$("speed100")};
   const zoomBtns  = {1:$("zoom1"),2:$("zoom2"),4:$("zoom4"),8:$("zoom8")};
 
-  // Période : décollage Terre -> atterrissage comète (Philae)
+  // Période : décollage Terre -> après atterrissage sur la comète (prolongée)
   const DATE0 = new Date("2004-03-02T00:00:00Z").getTime();
-  const DATE1 = new Date("2014-11-12T00:00:00Z").getTime();
-  const YEAR = 365.25 * 24 * 3600 * 1000;
+  // fin étendue jusqu'à la fin de mission (approx. 2016-09-30)
+  const DATE1 = new Date("2016-09-30T00:00:00Z").getTime();
+  const DAY  = 24 * 3600 * 1000;
+  const YEAR = 365.25 * DAY;
+
+  // date d'atterrissage Philae (repère)
+  const LANDING = new Date("2014-11-12T00:00:00Z").getTime();
 
   function lerp(a,b,t){ return a + (b-a)*t; }
   function clamp(x,a,b){ return Math.max(a, Math.min(b,x)); }
 
-  // Terre : cercle 1 AU (pédagogique)
+  // ----------------------- Modèles d'orbites (pédagogiques)
+  // Terre : cercle 1 AU
   function earthPos(ms){
     const theta = 2*Math.PI * ((ms - DATE0) / YEAR);
     return [Math.cos(theta), Math.sin(theta)];
+  }
+
+  // Mars : cercle ~1.52 AU, période 1.88 an (pédagogique)
+  const aM = 1.52;
+  const PM = 1.88 * YEAR;
+  const PHASE_M = 1.3;
+  function marsPos(ms){
+    const theta = 2*Math.PI * ((ms - DATE0) / PM) + PHASE_M;
+    return [aM*Math.cos(theta), aM*Math.sin(theta)];
   }
 
   // Soleil : origine
@@ -51,23 +67,23 @@
   }
 
   // Waypoints mission (repères pédagogiques)
+  // Note : après 2014-11-12, Rosetta "reste" sur la comète (même position que la comète) pour prolonger l'animation.
   const WP = [
     ["2004-03-02", "EARTH"],
     ["2005-03-04", "EARTH"],
-    ["2007-02-25", "MARS-LIKE"],
+    ["2007-02-25", "MARS"],
     ["2007-11-13", "EARTH"],
     ["2009-11-13", "EARTH"],
     ["2014-08-06", "COMET"],
-    ["2014-11-12", "COMET"]
+    ["2014-11-12", "COMET"],
+    ["2016-09-30", "COMET"]
   ].map(([ds, kind]) => ({ t: new Date(ds+"T00:00:00Z").getTime(), kind }));
 
   const rosettaPts = WP.map(w => {
     if (w.kind === "EARTH") return earthPos(w.t);
     if (w.kind === "COMET") return cometPos(w.t);
-    // "Mars-like" : point plus près du Soleil pour mimer un GA Mars
-    const p = earthPos(w.t);
-    const ang = Math.atan2(p[1], p[0]) + 0.35;
-    return [0.7*Math.cos(ang), 0.7*Math.sin(ang)];
+    if (w.kind === "MARS")  return marsPos(w.t);
+    return [0,0];
   });
 
   function catmullRom(p0,p1,p2,p3,t){
@@ -79,6 +95,9 @@
   }
 
   function rosettaPos(ms){
+    // après l'atterrissage, Rosetta est confondue avec la comète (prolongation visuelle)
+    if (ms >= LANDING) return cometPos(ms);
+
     if (ms <= WP[0].t) return rosettaPts[0];
     if (ms >= WP[WP.length-1].t) return rosettaPts[rosettaPts.length-1];
 
@@ -95,6 +114,24 @@
     return catmullRom(p0,p1,p2,p3,t);
   }
 
+  // ----------------------- Rencontres / assistances (affichage objets, sans trajectoires)
+  // Fenêtre d'affichage = ±90 jours autour de l'événement.
+  // Halo renforcé à ±12 jours.
+  // Astéroïdes (Steins/Lutetia) : affichés comme "repères" autour de la date de survol (modèle simplifié).
+  const STEINS_T   = new Date("2008-09-05T00:00:00Z").getTime();
+  const LUTETIA_T  = new Date("2010-07-10T00:00:00Z").getTime();
+  const STEINS_POS = rosettaPos(STEINS_T);
+  const LUTETIA_POS= rosettaPos(LUTETIA_T);
+
+  const EVENTS = [
+    { body:"EARTH",   date:"2005-03-04", label:"Assistance Terre" },
+    { body:"MARS",    date:"2007-02-25", label:"Assistance Mars"  },
+    { body:"EARTH",   date:"2007-11-13", label:"Assistance Terre" },
+    { body:"EARTH",   date:"2009-11-13", label:"Assistance Terre" },
+    { body:"STEINS",  date:"2008-09-05", label:"Survol astéroïde Steins" },
+    { body:"LUTETIA", date:"2010-07-10", label:"Survol astéroïde Lutetia" },
+  ].map(e => ({...e, t: new Date(e.date+"T00:00:00Z").getTime() }));
+
   // Référentiels
   const REFS = [
     { id:"ROSETTA", label:"Référentiel : Rosetta" },
@@ -107,7 +144,10 @@
     ROSETTA:"#e5e7eb",
     EARTH:"#60a5fa",
     SUN:"#fbbf24",
-    COMET:"#a7f3d0"
+    COMET:"#a7f3d0",
+    MARS:"#fb7185",
+    STEINS:"#f59e0b",
+    LUTETIA:"#c084fc"
   };
 
   let ref = "ROSETTA";
@@ -117,7 +157,7 @@
   let u = 0; // 0..1
   let lastTs = 0;
 
-  // Trajectoires "dessinées" (stockées), pour pouvoir les effacer au Reset
+  // Trajectoires "dessinées" (stockées), pour pouvoir les effacer
   const bodies = ["SUN","EARTH","COMET","ROSETTA"];
   const trails = Object.fromEntries(bodies.map(b => [b, []]));
   let lastTrailU = -1;
@@ -137,8 +177,14 @@
   function bodyPos(body, ms){
     if (body==="SUN") return sunPos(ms);
     if (body==="EARTH") return earthPos(ms);
+    if (body==="MARS") return marsPos(ms);
     if (body==="COMET") return cometPos(ms);
     if (body==="ROSETTA") return rosettaPos(ms);
+
+    // astéroïdes : positions "fixées" autour du survol (modèle simplifié)
+    if (body==="STEINS") return STEINS_POS;
+    if (body==="LUTETIA") return LUTETIA_POS;
+
     return [0,0];
   }
 
@@ -157,7 +203,7 @@
     for (const b of bodies){
       const [x,y] = rel(b, ms);
       trails[b].push([x,y]);
-      if (trails[b].length > 1600) trails[b].shift();
+      if (trails[b].length > 2200) trails[b].shift();
     }
   }
 
@@ -192,7 +238,13 @@
     setPlaying(false);
     u = 0;
     tRange.value = 0;
-    clearTrails(); // ✅ efface les trajectoires
+    clearTrails(); // efface les trajectoires
+    draw();
+  }
+
+  function eraseOnly(){
+    // efface sans revenir à t=0
+    clearTrails();
     draw();
   }
 
@@ -208,6 +260,51 @@
     setRef("ROSETTA");
   }
 
+  function drawEventMarkers(ms, cx, cy, pxPerAU){
+    const showWindow = 90 * DAY;
+    const strongWindow = 12 * DAY;
+
+    let yLegend = 52;
+    for (const e of EVENTS){
+      const dt = Math.abs(ms - e.t);
+      if (dt > showWindow) continue;
+
+      const body = e.body;
+      const [x,y] = rel(body, ms);
+      const X = cx + x*pxPerAU;
+      const Y = cy - y*pxPerAU;
+
+      const strong = dt <= strongWindow;
+
+      ctx.save();
+      ctx.globalAlpha = strong ? 0.9 : 0.55;
+
+      ctx.strokeStyle = COLORS[body] || "rgba(255,255,255,.8)";
+      ctx.lineWidth = strong ? 4 : 2;
+      ctx.beginPath();
+      ctx.arc(X, Y, strong ? 12 : 10, 0, Math.PI*2);
+      ctx.stroke();
+
+      ctx.fillStyle = COLORS[body] || "#fff";
+      ctx.beginPath();
+      ctx.arc(X, Y, strong ? 6 : 5, 0, Math.PI*2);
+      ctx.fill();
+
+      ctx.globalAlpha = strong ? 0.95 : 0.7;
+      ctx.fillStyle = COLORS[body] || "#fff";
+      ctx.font = "13px system-ui,Segoe UI,Roboto,Arial";
+      ctx.fillText(body, X + 12, Y - 10);
+
+      ctx.restore();
+
+      // mini-légende (une ligne par événement visible)
+      ctx.fillStyle = "rgba(255,255,255,0.78)";
+      ctx.font = "13px system-ui,Segoe UI,Roboto,Arial";
+      ctx.fillText(e.label + " (" + e.date + ")", 16, yLegend);
+      yLegend += 16;
+    }
+  }
+
   function draw(){
     const w = canvas.width, h = canvas.height;
     ctx.clearRect(0,0,w,h);
@@ -215,7 +312,11 @@
     ctx.fillRect(0,0,w,h);
 
     const cx=w/2, cy=h/2;
-    const pxPerAU = 170 * zoom;
+
+    // ✅ Dézoom : base plus faible pour voir l'orbite de la comète en entier
+    // a(1+e) ~ 5.7 AU -> doit tenir dans la demi-largeur
+    const basePxPerAU = 78;
+    const pxPerAU = basePxPerAU * zoom;
 
     // grille légère
     ctx.strokeStyle="rgba(255,255,255,.06)";
@@ -233,7 +334,7 @@
     const ms = msFromU(u);
     tLabel.textContent = isoDate(ms);
 
-    // trajectoires stockées
+    // trajectoires stockées (uniquement Soleil/Terre/Comète/Rosetta)
     for (const body of bodies){
       const tr = trails[body];
       if (tr.length >= 2){
@@ -250,7 +351,7 @@
       }
     }
 
-    // positions courantes + labels
+    // positions courantes + labels (uniquement Soleil/Terre/Comète/Rosetta)
     for (const body of bodies){
       const [x,y] = rel(body, ms);
       const X = cx + x*pxPerAU;
@@ -265,11 +366,23 @@
       ctx.fillText(body, X+8, Y-8);
     }
 
+    // ✅ Nom de la comète (près du point COMET)
+    {
+      const [x,y] = rel("COMET", ms);
+      const X = cx + x*pxPerAU;
+      const Y = cy - y*pxPerAU;
+      ctx.fillStyle = "rgba(255,255,255,0.82)";
+      ctx.font = "14px system-ui,Segoe UI,Roboto,Arial";
+      ctx.fillText("67P/Churyumov–Gerasimenko", X + 10, Y + 18);
+    }
+
+    // ✅ événements (assistances/rencontres) : objets affichés sans trajectoires
+    drawEventMarkers(ms, cx, cy, pxPerAU);
+
     // titre
     ctx.fillStyle="rgba(255,255,255,.88)";
     ctx.font="16px system-ui,Segoe UI,Roboto,Arial";
     ctx.fillText("Relativité du mouvement — trajectoires relatives (simplifiée)", 16, 26);
-
 
     // --- Signature ---
     ctx.fillStyle = "rgba(255,255,255,0.65)";
@@ -281,7 +394,6 @@
       canvas.height - 14
     );
     ctx.textAlign = "left";
-    
   }
 
   function tick(ts){
@@ -290,7 +402,7 @@
     lastTs = ts;
 
     if (playing){
-      const base = 1/1600; // fraction timeline / s à ×1
+      const base = 1/1700; // un peu plus lent car timeline plus longue
       u += (dt/1000) * base * speed;
       if (u > 1) { u = 1; setPlaying(false); }
       tRange.value = Math.round(u*1000);
@@ -304,9 +416,10 @@
   // wiring
   playBtn.onclick = () => setPlaying(!playing);
   resetBtn.onclick = () => resetAll();
+  eraseBtn.onclick = () => eraseOnly();
 
   tRange.addEventListener("input", () => {
-    // un "scrub" est un nouveau départ visuel
+    // scrubbing = trajectoire effacée, sans retour à t=0
     setPlaying(false);
     u = (+tRange.value)/1000;
     clearTrails();
