@@ -22,11 +22,6 @@
       box-shadow:0 14px 30px rgba(0,0,0,.45);
     }
     canvas{display:block;width:100%;height:auto}
-    .panel{max-width:980px;margin:10px auto 0;display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:space-between}
-    .small{opacity:.85;font-size:12px;line-height:1.35}
-    .pill{font-family:ui-monospace,Consolas,monospace;background:rgba(255,255,255,.08);padding:2px 8px;border-radius:999px}
-    .slider{display:flex;align-items:center;gap:10px;flex:1;min-width:320px}
-    input[type=range]{width:100%}
   </style>
 </head>
 <body>
@@ -51,27 +46,8 @@
     <div class="stage">
       <canvas id="c" width="980" height="620"></canvas>
     </div>
-
-    <div class="panel">
-      <div class="slider">
-        <span class="small">Temps</span>
-        <input id="tRange" type="range" min="0" max="1000" step="1" value="0">
-      </div>
-      <div class="small">
-        Référentiel : <span class="pill" id="refLabel">—</span>
-        · Date : <span class="pill" id="tLabel">—</span>
-        · Zoom : <span class="pill" id="zLabel">1×</span>
-        · Vitesse : <span class="pill" id="vLabel">×1</span>
-      </div>
-    </div>
-
-    <div class="small" style="max-width:980px;margin:10px auto 0;">
-      Version <b>simplifiée</b> pour illustrer la relativité du mouvement.
-      <b>Reset</b> = retour au départ + efface les trajectoires. <b>Efface</b> = efface uniquement les trajectoires (sans revenir à t=0).
-      Assistances/rencontres : planètes/astéroïdes affichés (sans tracer leur trajectoire).
-    </div>
   </div>
 
-  <script src="app.js?v=3"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>
