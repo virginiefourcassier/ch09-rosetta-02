@@ -19,27 +19,25 @@
   const speedBtns = {1:$("speed1"),5:$("speed5"),20:$("speed20"),100:$("speed100")};
   const zoomBtns  = {1:$("zoom1"),2:$("zoom2"),4:$("zoom4"),8:$("zoom8")};
 
-  // Période : décollage Terre -> après atterrissage sur la comète (prolongée)
+  // Timeline (prolongée après l’atterrissage)
   const DATE0 = new Date("2004-03-02T00:00:00Z").getTime();
-  // fin étendue jusqu'à la fin de mission (approx. 2016-09-30)
   const DATE1 = new Date("2016-09-30T00:00:00Z").getTime();
+  const LANDING = new Date("2014-11-12T00:00:00Z").getTime();
+
   const DAY  = 24 * 3600 * 1000;
   const YEAR = 365.25 * DAY;
-
-  // date d'atterrissage Philae (repère)
-  const LANDING = new Date("2014-11-12T00:00:00Z").getTime();
 
   function lerp(a,b,t){ return a + (b-a)*t; }
   function clamp(x,a,b){ return Math.max(a, Math.min(b,x)); }
 
-  // ----------------------- Modèles d'orbites (pédagogiques)
+  // ----------------------- Orbites pédagogiques
   // Terre : cercle 1 AU
   function earthPos(ms){
     const theta = 2*Math.PI * ((ms - DATE0) / YEAR);
     return [Math.cos(theta), Math.sin(theta)];
   }
 
-  // Mars : cercle ~1.52 AU, période 1.88 an (pédagogique)
+  // Mars : cercle ~1.52 AU, période 1.88 an
   const aM = 1.52;
   const PM = 1.88 * YEAR;
   const PHASE_M = 1.3;
@@ -51,7 +49,7 @@
   // Soleil : origine
   function sunPos(_ms){ return [0,0]; }
 
-  // Comète 67P : ellipse pédagogique (non éphémérides)
+  // Comète 67P : ellipse pédagogique
   const aC = 3.46, eC = 0.64;
   const bC = aC * Math.sqrt(1 - eC*eC);
   const PC = 6.44 * YEAR;
@@ -66,8 +64,7 @@
     return [x*Math.cos(ang) - y*Math.sin(ang), x*Math.sin(ang) + y*Math.cos(ang)];
   }
 
-  // Waypoints mission (repères pédagogiques)
-  // Note : après 2014-11-12, Rosetta "reste" sur la comète (même position que la comète) pour prolonger l'animation.
+  // Rosetta : spline sur repères (pédagogique) puis confondue avec la comète après 2014-11-12
   const WP = [
     ["2004-03-02", "EARTH"],
     ["2005-03-04", "EARTH"],
@@ -95,7 +92,6 @@
   }
 
   function rosettaPos(ms){
-    // après l'atterrissage, Rosetta est confondue avec la comète (prolongation visuelle)
     if (ms >= LANDING) return cometPos(ms);
 
     if (ms <= WP[0].t) return rosettaPts[0];
@@ -114,10 +110,7 @@
     return catmullRom(p0,p1,p2,p3,t);
   }
 
-  // ----------------------- Rencontres / assistances (affichage objets, sans trajectoires)
-  // Fenêtre d'affichage = ±90 jours autour de l'événement.
-  // Halo renforcé à ±12 jours.
-  // Astéroïdes (Steins/Lutetia) : affichés comme "repères" autour de la date de survol (modèle simplifié).
+  // ----------------------- Événements : assistances + survols (affichés sans trajectoires)
   const STEINS_T   = new Date("2008-09-05T00:00:00Z").getTime();
   const LUTETIA_T  = new Date("2010-07-10T00:00:00Z").getTime();
   const STEINS_POS = rosettaPos(STEINS_T);
@@ -127,8 +120,8 @@
     { body:"EARTH",   date:"2005-03-04", label:"Assistance Terre" },
     { body:"MARS",    date:"2007-02-25", label:"Assistance Mars"  },
     { body:"EARTH",   date:"2007-11-13", label:"Assistance Terre" },
-    { body:"EARTH",   date:"2009-11-13", label:"Assistance Terre" },
     { body:"STEINS",  date:"2008-09-05", label:"Survol astéroïde Steins" },
+    { body:"EARTH",   date:"2009-11-13", label:"Assistance Terre" },
     { body:"LUTETIA", date:"2010-07-10", label:"Survol astéroïde Lutetia" },
   ].map(e => ({...e, t: new Date(e.date+"T00:00:00Z").getTime() }));
 
@@ -180,11 +173,8 @@
     if (body==="MARS") return marsPos(ms);
     if (body==="COMET") return cometPos(ms);
     if (body==="ROSETTA") return rosettaPos(ms);
-
-    // astéroïdes : positions "fixées" autour du survol (modèle simplifié)
     if (body==="STEINS") return STEINS_POS;
     if (body==="LUTETIA") return LUTETIA_POS;
-
     return [0,0];
   }
 
@@ -195,7 +185,6 @@
   }
 
   function pushTrailPoint(){
-    // échantillonnage en u (évite trop de points)
     if (Math.abs(u - lastTrailU) < 0.0015) return;
     lastTrailU = u;
 
@@ -203,7 +192,7 @@
     for (const b of bodies){
       const [x,y] = rel(b, ms);
       trails[b].push([x,y]);
-      if (trails[b].length > 2200) trails[b].shift();
+      if (trails[b].length > 2400) trails[b].shift();
     }
   }
 
@@ -211,7 +200,6 @@
     ref = r;
     [...refBtns.querySelectorAll("button")].forEach(b => b.classList.toggle("active", b.dataset.ref===r));
     refLabel.textContent = r;
-    // ancien tracé incompatible avec nouveau référentiel -> on efface
     clearTrails();
     draw();
   }
@@ -238,12 +226,11 @@
     setPlaying(false);
     u = 0;
     tRange.value = 0;
-    clearTrails(); // efface les trajectoires
+    clearTrails();
     draw();
   }
 
   function eraseOnly(){
-    // efface sans revenir à t=0
     clearTrails();
     draw();
   }
@@ -260,9 +247,78 @@
     setRef("ROSETTA");
   }
 
+  // ---------- Placement d'étiquettes sans chevauchement (simple)
+  function rectsOverlap(a,b){
+    return !(a.x+a.w < b.x || b.x+b.w < a.x || a.y+a.h < b.y || b.y+b.h < a.y);
+  }
+  function placeLabel(text, x, y, color, occupied, font="14px system-ui,Segoe UI,Roboto,Arial"){
+    ctx.font = font;
+    const w = ctx.measureText(text).width;
+    const h = 14; // approx
+
+    const candidates = [
+      {dx: 10, dy:-10},
+      {dx: 10, dy: 18},
+      {dx:-10-w, dy:-10},
+      {dx:-10-w, dy: 18},
+      {dx: 10, dy:-28},
+      {dx: 10, dy: 34},
+      {dx:-10-w, dy:-28},
+      {dx:-10-w, dy: 34},
+    ];
+
+    for (const c of candidates){
+      const r = {x: x+c.dx, y: y+c.dy-h, w, h: h+4};
+      let ok = true;
+      for (const o of occupied){
+        if (rectsOverlap(r,o)){ ok=false; break; }
+      }
+      if (!ok) continue;
+
+      ctx.fillStyle = color;
+      ctx.fillText(text, r.x, r.y + h);
+      occupied.push(r);
+      return;
+    }
+
+    // fallback (si tout chevauche)
+    ctx.fillStyle = color;
+    ctx.fillText(text, x+10, y-10);
+    occupied.push({x:x+10,y:y-10-h,w,h:h+4});
+  }
+
+  function drawScaleBar(pxPerAU){
+    const barAU = 1;
+    const len = barAU * pxPerAU;
+
+    const x0 = 16;
+    const y0 = canvas.height - 40;
+
+    ctx.save();
+    ctx.strokeStyle = "rgba(255,255,255,0.75)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x0 + len, y0);
+    ctx.stroke();
+
+    // ticks
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0-8); ctx.lineTo(x0, y0+8);
+    ctx.moveTo(x0+len, y0-8); ctx.lineTo(x0+len, y0+8);
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.font = "13px system-ui,Segoe UI,Roboto,Arial";
+    ctx.fillText("1 AU", x0, y0 - 12);
+    ctx.restore();
+  }
+
   function drawEventMarkers(ms, cx, cy, pxPerAU){
-    const showWindow = 90 * DAY;
-    const strongWindow = 12 * DAY;
+    const showWindow = 120 * DAY;     // un peu plus large
+    const strongWindow = 18 * DAY;    // halo plus long
+    const pulseWindow  = 6 * DAY;     // pulsation très proche
 
     let yLegend = 52;
     for (const e of EVENTS){
@@ -275,32 +331,46 @@
       const Y = cy - y*pxPerAU;
 
       const strong = dt <= strongWindow;
+      const pulse  = dt <= pulseWindow;
+
+      // Intensité/pulsation
+      const p = pulse ? (0.55 + 0.45*Math.sin((ms/500) % (2*Math.PI))) : 1.0;
 
       ctx.save();
-      ctx.globalAlpha = strong ? 0.9 : 0.55;
 
+      // Ligne Rosetta -> objet (mise en évidence nette)
+      const [rx,ry] = rel("ROSETTA", ms);
+      const RX = cx + rx*pxPerAU;
+      const RY = cy - ry*pxPerAU;
+      ctx.globalAlpha = strong ? 0.55 : 0.25;
       ctx.strokeStyle = COLORS[body] || "rgba(255,255,255,.8)";
-      ctx.lineWidth = strong ? 4 : 2;
+      ctx.lineWidth = strong ? 2.5 : 1.5;
       ctx.beginPath();
-      ctx.arc(X, Y, strong ? 12 : 10, 0, Math.PI*2);
+      ctx.moveTo(RX, RY);
+      ctx.lineTo(X, Y);
       ctx.stroke();
 
+      // Halo externe (plus visible)
+      ctx.globalAlpha = (strong ? 0.95 : 0.70) * p;
+      ctx.strokeStyle = COLORS[body] || "rgba(255,255,255,.8)";
+      ctx.lineWidth = strong ? 5 : 3;
+      ctx.beginPath();
+      ctx.arc(X, Y, strong ? 14 : 12, 0, Math.PI*2);
+      ctx.stroke();
+
+      // Disque objet
+      ctx.globalAlpha = (strong ? 0.95 : 0.75) * p;
       ctx.fillStyle = COLORS[body] || "#fff";
       ctx.beginPath();
-      ctx.arc(X, Y, strong ? 6 : 5, 0, Math.PI*2);
+      ctx.arc(X, Y, strong ? 7 : 6, 0, Math.PI*2);
       ctx.fill();
-
-      ctx.globalAlpha = strong ? 0.95 : 0.7;
-      ctx.fillStyle = COLORS[body] || "#fff";
-      ctx.font = "13px system-ui,Segoe UI,Roboto,Arial";
-      ctx.fillText(body, X + 12, Y - 10);
 
       ctx.restore();
 
-      // mini-légende (une ligne par événement visible)
-      ctx.fillStyle = "rgba(255,255,255,0.78)";
+      // Mini-légende (en haut à gauche)
+      ctx.fillStyle = "rgba(255,255,255,0.82)";
       ctx.font = "13px system-ui,Segoe UI,Roboto,Arial";
-      ctx.fillText(e.label + " (" + e.date + ")", 16, yLegend);
+      ctx.fillText("✨ " + e.label + " (" + e.date + ")", 16, yLegend);
       yLegend += 16;
     }
   }
@@ -313,9 +383,8 @@
 
     const cx=w/2, cy=h/2;
 
-    // ✅ Dézoom : base plus faible pour voir l'orbite de la comète en entier
-    // a(1+e) ~ 5.7 AU -> doit tenir dans la demi-largeur
-    const basePxPerAU = 78;
+    // ✅ Dézoom renforcé : base plus faible
+    const basePxPerAU = 56;
     const pxPerAU = basePxPerAU * zoom;
 
     // grille légère
@@ -334,12 +403,12 @@
     const ms = msFromU(u);
     tLabel.textContent = isoDate(ms);
 
-    // trajectoires stockées (uniquement Soleil/Terre/Comète/Rosetta)
+    // trajectoires stockées
     for (const body of bodies){
       const tr = trails[body];
       if (tr.length >= 2){
         ctx.strokeStyle = COLORS[body];
-        ctx.lineWidth = body==="ROSETTA" ? 2.5 : 2.0;
+        ctx.lineWidth = body==="ROSETTA" ? 2.6 : 2.0;
         ctx.beginPath();
         for (let i=0;i<tr.length;i++){
           const [x,y] = tr[i];
@@ -351,7 +420,11 @@
       }
     }
 
-    // positions courantes + labels (uniquement Soleil/Terre/Comète/Rosetta)
+    // événements (assistances/rencontres)
+    drawEventMarkers(ms, cx, cy, pxPerAU);
+
+    // positions + étiquettes sans chevauchement
+    const occupied = [];
     for (const body of bodies){
       const [x,y] = rel(body, ms);
       const X = cx + x*pxPerAU;
@@ -362,29 +435,27 @@
       ctx.arc(X,Y, body===ref ? 7 : (body==="ROSETTA" ? 5 : 4), 0, Math.PI*2);
       ctx.fill();
 
-      ctx.font = "14px system-ui,Segoe UI,Roboto,Arial";
-      ctx.fillText(body, X+8, Y-8);
+      // étiquette courte (SUN/EARTH/COMET/ROSETTA)
+      placeLabel(body, X, Y, "rgba(255,255,255,0.92)", occupied);
     }
 
-    // ✅ Nom de la comète (près du point COMET)
+    // nom complet comète (évite chevauchement par placement)
     {
       const [x,y] = rel("COMET", ms);
       const X = cx + x*pxPerAU;
       const Y = cy - y*pxPerAU;
-      ctx.fillStyle = "rgba(255,255,255,0.82)";
-      ctx.font = "14px system-ui,Segoe UI,Roboto,Arial";
-      ctx.fillText("67P/Churyumov–Gerasimenko", X + 10, Y + 18);
+      placeLabel("67P/Churyumov–Gerasimenko", X, Y, "rgba(255,255,255,0.82)", occupied, "13px system-ui,Segoe UI,Roboto,Arial");
     }
 
-    // ✅ événements (assistances/rencontres) : objets affichés sans trajectoires
-    drawEventMarkers(ms, cx, cy, pxPerAU);
+    // échelle 1 AU
+    drawScaleBar(pxPerAU);
 
     // titre
     ctx.fillStyle="rgba(255,255,255,.88)";
     ctx.font="16px system-ui,Segoe UI,Roboto,Arial";
     ctx.fillText("Relativité du mouvement — trajectoires relatives (simplifiée)", 16, 26);
 
-    // --- Signature ---
+    // signature
     ctx.fillStyle = "rgba(255,255,255,0.65)";
     ctx.font = "13px system-ui,Segoe UI,Roboto,Arial";
     ctx.textAlign = "right";
@@ -402,7 +473,7 @@
     lastTs = ts;
 
     if (playing){
-      const base = 1/1700; // un peu plus lent car timeline plus longue
+      const base = 1/1750;
       u += (dt/1000) * base * speed;
       if (u > 1) { u = 1; setPlaying(false); }
       tRange.value = Math.round(u*1000);
@@ -419,7 +490,6 @@
   eraseBtn.onclick = () => eraseOnly();
 
   tRange.addEventListener("input", () => {
-    // scrubbing = trajectoire effacée, sans retour à t=0
     setPlaying(false);
     u = (+tRange.value)/1000;
     clearTrails();
